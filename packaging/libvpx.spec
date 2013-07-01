@@ -7,6 +7,7 @@ Summary:        VP8 codec library
 Url:            http://www.webmproject.org/
 Group:          Productivity/Multimedia/Other
 Source0:        http://webm.googlecode.com/files/%{name}-v%{version}%{patchlevel}.tar.bz2
+Source1001: 	libvpx.manifest
 BuildRequires:  yasm
 
 %description
@@ -49,6 +50,7 @@ The WebM file structure is based on the Matroska container.
 
 %prep
 %setup -q -n %name-v%version%patchlevel
+cp %{SOURCE1001} .
 
 %build
 cd build
@@ -80,15 +82,18 @@ cd build
 %postun -n %{name} -p /sbin/ldconfig
 
 %files -n vpx-tools
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_bindir}/*
 
 %files 
+%manifest %{name}.manifest
 %defattr(-, root, root)
 %license LICENSE
 %{_libdir}/libvpx.so.*
 
 %files devel
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_includedir}/vpx/
 %{_libdir}/pkgconfig/vpx.pc
