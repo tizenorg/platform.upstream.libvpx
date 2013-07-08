@@ -1,0 +1,8 @@
+Change-Id: I16bba3634133be79e8cdae76ed7e8207e15c164e
+Code-Review+2: Ryan Ware <ware@linux.intel.com>
+Verified+1: Ryan Ware <ware@linux.intel.com>
+Submitted-by: Ryan Ware <ware@linux.intel.com>
+Submitted-at: Mon, 08 Jul 2013 09:37:34 -0700
+Reviewed-on: https://review.tizen.org/gerrit/5205
+Project: platform/upstream/libvpx
+Branch: refs/heads/tizen
