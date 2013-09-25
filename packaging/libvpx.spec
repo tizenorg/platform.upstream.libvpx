@@ -1,12 +1,11 @@
 Name:           libvpx
-Version:        1.1.0
+Version:        1.2.0
 Release:        0
-%define patchlevel %{nil}
-License:        BSD-3-Clause ; GPL-2.0+
+License:        BSD-3-Clause and GPL-2.0+
 Summary:        VP8 codec library
 Url:            http://www.webmproject.org/
-Group:          Productivity/Multimedia/Other
-Source0:        http://webm.googlecode.com/files/%{name}-v%{version}%{patchlevel}.tar.bz2
+Group:          Multimedia/Libraries
+Source0:        http://webm.googlecode.com/files/%{name}-v%{version}.tar.bz2
 Source1001: 	libvpx.manifest
 BuildRequires:  yasm
 
@@ -19,9 +18,7 @@ and audio streams compressed with the Vorbis audio codec.
 The WebM file structure is based on the Matroska container.
 
 %package -n vpx-tools
-License:        BSD-3-Clause ; GPL-2.0+
 Summary:        VP8 codec library - Utilities
-Group:          Productivity/Multimedia/Other
 
 %description -n vpx-tools
 This package contains utilities around the vp8 codec sdk.
@@ -33,9 +30,7 @@ WebM files consist of video streams compressed with the VP8 video codec
 and audio streams compressed with the Vorbis audio codec.
 The WebM file structure is based on the Matroska container.
 %package devel
-License:        BSD-3-Clause ; GPL-2.0+
 Summary:        VP8 codec library - Development headers
-Group:          Development/Languages/C and C++
 Requires:       %{name} = %{version}
 
 %description devel
@@ -49,7 +44,7 @@ and audio streams compressed with the Vorbis audio codec.
 The WebM file structure is based on the Matroska container.
 
 %prep
-%setup -q -n %name-v%version%patchlevel
+%setup -q -n %name-v%version
 cp %{SOURCE1001} .
 
 %build
