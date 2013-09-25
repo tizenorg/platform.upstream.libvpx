@@ -30,7 +30,6 @@ VP8_COMMON_SRCS-yes += common/findnearmv.c
 VP8_COMMON_SRCS-yes += common/generic/systemdependent.c
 VP8_COMMON_SRCS-yes += common/idct_blk.c
 VP8_COMMON_SRCS-yes += common/idctllm.c
-VP8_COMMON_SRCS-yes += common/idctllm_test.cc
 VP8_COMMON_SRCS-yes += common/alloccommon.h
 VP8_COMMON_SRCS-yes += common/blockd.h
 VP8_COMMON_SRCS-yes += common/common.h
@@ -85,7 +84,6 @@ VP8_COMMON_SRCS-$(CONFIG_POSTPROC) += common/postproc.c
 VP8_COMMON_SRCS-$(HAVE_MMX) += common/x86/dequantize_mmx.asm
 VP8_COMMON_SRCS-$(HAVE_MMX) += common/x86/idct_blk_mmx.c
 VP8_COMMON_SRCS-$(HAVE_MMX) += common/x86/idctllm_mmx.asm
-VP8_COMMON_SRCS-$(HAVE_MMX) += common/x86/idctllm_mmx_test.cc
 VP8_COMMON_SRCS-$(HAVE_MMX) += common/x86/iwalsh_mmx.asm
 VP8_COMMON_SRCS-$(HAVE_MMX) += common/x86/loopfilter_mmx.asm
 VP8_COMMON_SRCS-$(HAVE_MMX) += common/x86/recon_mmx.asm
@@ -120,6 +118,14 @@ endif
 ifeq ($(ARCH_X86_64),yes)
 VP8_COMMON_SRCS-$(HAVE_SSE2) += common/x86/loopfilter_block_sse2.asm
 endif
+
+# common (c)
+VP8_COMMON_SRCS-$(HAVE_DSPR2)  += common/mips/dspr2/idctllm_dspr2.c
+VP8_COMMON_SRCS-$(HAVE_DSPR2)  += common/mips/dspr2/filter_dspr2.c
+VP8_COMMON_SRCS-$(HAVE_DSPR2)  += common/mips/dspr2/loopfilter_filters_dspr2.c
+VP8_COMMON_SRCS-$(HAVE_DSPR2)  += common/mips/dspr2/reconinter_dspr2.c
+VP8_COMMON_SRCS-$(HAVE_DSPR2)  += common/mips/dspr2/idct_blk_dspr2.c
+VP8_COMMON_SRCS-$(HAVE_DSPR2)  += common/mips/dspr2/dequantize_dspr2.c
 
 # common (c)
 VP8_COMMON_SRCS-$(ARCH_ARM)  += common/arm/filter_arm.c

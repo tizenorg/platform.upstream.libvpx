@@ -54,11 +54,7 @@ typedef __int64 off_t;
 #define off_t off64_t
 #endif
 
-#if defined(_MSC_VER)
-#define LITERALU64(n) n
-#else
-#define LITERALU64(n) n##LLU
-#endif
+#define LITERALU64(hi,lo) ((((uint64_t)hi)<<32)|lo)
 
 /* We should use 32-bit file operations in WebM file format
  * when building ARM executable file (.axf) with RVCT */
@@ -68,12 +64,28 @@ typedef long off_t;
 #define ftello ftell
 #endif
 
+/* Swallow warnings about unused results of fread/fwrite */
+static size_t wrap_fread(void *ptr, size_t size, size_t nmemb,
+                         FILE *stream)
+{
+    return fread(ptr, size, nmemb, stream);
+}
+#define fread wrap_fread
+
+static size_t wrap_fwrite(const void *ptr, size_t size, size_t nmemb,
+                          FILE *stream)
+{
+    return fwrite(ptr, size, nmemb, stream);
+}
+#define fwrite wrap_fwrite
+
+
 static const char *exec_name;
 
 static const struct codec_item
 {
     char const              *name;
-    const vpx_codec_iface_t *iface;
+    vpx_codec_iface_t       *iface;
     unsigned int             fourcc;
 } codecs[] =
 {
@@ -245,7 +257,7 @@ void stats_write(stats_io_t *stats, const void *pkt, size_t len)
 {
     if (stats->file)
     {
-        if(fwrite(pkt, 1, len, stats->file));
+        (void) fwrite(pkt, 1, len, stats->file);
     }
     else
     {
@@ -338,7 +350,7 @@ static int read_frame(struct input_state *input, vpx_image_t *img)
              * write_ivf_frame_header() for documentation on the frame header
              * layout.
              */
-            if(fread(junk, 1, IVF_FRAME_HDR_SZ, f));
+            (void) fread(junk, 1, IVF_FRAME_HDR_SZ, f);
         }
 
         for (plane = 0; plane < 3; plane++)
@@ -468,7 +480,7 @@ static void write_ivf_file_header(FILE *outfile,
     mem_put_le32(header + 24, frame_cnt);         /* length */
     mem_put_le32(header + 28, 0);                 /* unused */
 
-    if(fwrite(header, 1, 32, outfile));
+    (void) fwrite(header, 1, 32, outfile);
 }
 
 
@@ -482,18 +494,18 @@ static void write_ivf_frame_header(FILE *outfile,
         return;
 
     pts = pkt->data.frame.pts;
-    mem_put_le32(header, pkt->data.frame.sz);
+    mem_put_le32(header, (int)pkt->data.frame.sz);
     mem_put_le32(header + 4, pts & 0xFFFFFFFF);
     mem_put_le32(header + 8, pts >> 32);
 
-    if(fwrite(header, 1, 12, outfile));
+    (void) fwrite(header, 1, 12, outfile);
 }
 
 static void write_ivf_frame_size(FILE *outfile, size_t size)
 {
     char             header[4];
-    mem_put_le32(header, size);
-    fwrite(header, 1, 4, outfile);
+    mem_put_le32(header, (int)size);
+    (void) fwrite(header, 1, 4, outfile);
 }
 
 
@@ -541,13 +553,13 @@ struct EbmlGlobal
 
 void Ebml_Write(EbmlGlobal *glob, const void *buffer_in, unsigned long len)
 {
-    if(fwrite(buffer_in, 1, len, glob->stream));
+    (void) fwrite(buffer_in, 1, len, glob->stream);
 }
 
 #define WRITE_BUFFER(s) \
 for(i = len-1; i>=0; i--)\
 { \
-    x = *(const s *)buffer_in >> (i * CHAR_BIT); \
+    x = (char)(*(const s *)buffer_in >> (i * CHAR_BIT)); \
     Ebml_Write(glob, &x, 1); \
 }
 void Ebml_Serialize(EbmlGlobal *glob, const void *buffer_in, int buffer_size, unsigned long len)
@@ -597,9 +609,9 @@ static void
 Ebml_StartSubElement(EbmlGlobal *glob, EbmlLoc *ebmlLoc,
                           unsigned long class_id)
 {
-    //todo this is always taking 8 bytes, this may need later optimization
-    //this is a key that says length unknown
-    uint64_t unknownLen =  LITERALU64(0x01FFFFFFFFFFFFFF);
+    /* todo this is always taking 8 bytes, this may need later optimization */
+    /* this is a key that says length unknown */
+    uint64_t unknownLen = LITERALU64(0x01FFFFFF, 0xFFFFFFFF);
 
     Ebml_WriteID(glob, class_id);
     *ebmlLoc = ftello(glob->stream);
@@ -617,7 +629,7 @@ Ebml_EndSubElement(EbmlGlobal *glob, EbmlLoc *ebmlLoc)
 
     /* Calculate the size of this element */
     size = pos - *ebmlLoc - 8;
-    size |=  LITERALU64(0x0100000000000000);
+    size |= LITERALU64(0x01000000,0x00000000);
 
     /* Seek back to the beginning of the element and write the new size */
     fseeko(glob->stream, *ebmlLoc, SEEK_SET);
@@ -664,7 +676,7 @@ write_webm_seek_info(EbmlGlobal *ebml)
         Ebml_EndSubElement(ebml, &start);
     }
     {
-        //segment info
+        /* segment info */
         EbmlLoc startInfo;
         uint64_t frame_time;
         char version_string[64];
@@ -686,7 +698,7 @@ write_webm_seek_info(EbmlGlobal *ebml)
         Ebml_StartSubElement(ebml, &startInfo, Info);
         Ebml_SerializeUnsigned(ebml, TimecodeScale, 1000000);
         Ebml_SerializeFloat(ebml, Segment_Duration,
-                            ebml->last_pts_ms + frame_time);
+                            (double)(ebml->last_pts_ms + frame_time));
         Ebml_SerializeString(ebml, 0x4D80, version_string);
         Ebml_SerializeString(ebml, 0x5741, version_string);
         Ebml_EndSubElement(ebml, &startInfo);
@@ -704,16 +716,16 @@ write_webm_file_header(EbmlGlobal                *glob,
         EbmlLoc start;
         Ebml_StartSubElement(glob, &start, EBML);
         Ebml_SerializeUnsigned(glob, EBMLVersion, 1);
-        Ebml_SerializeUnsigned(glob, EBMLReadVersion, 1); //EBML Read Version
-        Ebml_SerializeUnsigned(glob, EBMLMaxIDLength, 4); //EBML Max ID Length
-        Ebml_SerializeUnsigned(glob, EBMLMaxSizeLength, 8); //EBML Max Size Length
-        Ebml_SerializeString(glob, DocType, "webm"); //Doc Type
-        Ebml_SerializeUnsigned(glob, DocTypeVersion, 2); //Doc Type Version
-        Ebml_SerializeUnsigned(glob, DocTypeReadVersion, 2); //Doc Type Read Version
+        Ebml_SerializeUnsigned(glob, EBMLReadVersion, 1);
+        Ebml_SerializeUnsigned(glob, EBMLMaxIDLength, 4);
+        Ebml_SerializeUnsigned(glob, EBMLMaxSizeLength, 8);
+        Ebml_SerializeString(glob, DocType, "webm");
+        Ebml_SerializeUnsigned(glob, DocTypeVersion, 2);
+        Ebml_SerializeUnsigned(glob, DocTypeReadVersion, 2);
         Ebml_EndSubElement(glob, &start);
     }
     {
-        Ebml_StartSubElement(glob, &glob->startSegment, Segment); //segment
+        Ebml_StartSubElement(glob, &glob->startSegment, Segment);
         glob->position_reference = ftello(glob->stream);
         glob->framerate = *fps;
         write_webm_seek_info(glob);
@@ -731,7 +743,7 @@ write_webm_file_header(EbmlGlobal                *glob,
                 Ebml_SerializeUnsigned(glob, TrackNumber, trackNumber);
                 glob->track_id_pos = ftello(glob->stream);
                 Ebml_SerializeUnsigned32(glob, TrackUID, trackID);
-                Ebml_SerializeUnsigned(glob, TrackType, 1); //video is always 1
+                Ebml_SerializeUnsigned(glob, TrackType, 1);
                 Ebml_SerializeString(glob, CodecID, "V_VP8");
                 {
                     unsigned int pixelWidth = cfg->g_w;
@@ -744,13 +756,13 @@ write_webm_file_header(EbmlGlobal                *glob,
                     Ebml_SerializeUnsigned(glob, PixelHeight, pixelHeight);
                     Ebml_SerializeUnsigned(glob, StereoMode, stereo_fmt);
                     Ebml_SerializeFloat(glob, FrameRate, frameRate);
-                    Ebml_EndSubElement(glob, &videoStart); //Video
+                    Ebml_EndSubElement(glob, &videoStart);
                 }
-                Ebml_EndSubElement(glob, &start); //Track Entry
+                Ebml_EndSubElement(glob, &start); /* Track Entry */
             }
             Ebml_EndSubElement(glob, &trackStart);
         }
-        // segment element is open
+        /* segment element is open */
     }
 }
 
@@ -778,7 +790,7 @@ write_webm_block(EbmlGlobal                *glob,
     if(pts_ms - glob->cluster_timecode > SHRT_MAX)
         start_cluster = 1;
     else
-        block_timecode = pts_ms - glob->cluster_timecode;
+        block_timecode = (unsigned short)pts_ms - glob->cluster_timecode;
 
     is_keyframe = (pkt->data.frame.flags & VPX_FRAME_IS_KEY);
     if(start_cluster || is_keyframe)
@@ -789,9 +801,9 @@ write_webm_block(EbmlGlobal                *glob,
         /* Open the new cluster */
         block_timecode = 0;
         glob->cluster_open = 1;
-        glob->cluster_timecode = pts_ms;
+        glob->cluster_timecode = (uint32_t)pts_ms;
         glob->cluster_pos = ftello(glob->stream);
-        Ebml_StartSubElement(glob, &glob->startCluster, Cluster); //cluster
+        Ebml_StartSubElement(glob, &glob->startCluster, Cluster); /* cluster */
         Ebml_SerializeUnsigned(glob, Timecode, glob->cluster_timecode);
 
         /* Save a cue point if this is a keyframe. */
@@ -816,7 +828,7 @@ write_webm_block(EbmlGlobal                *glob,
     /* Write the Simple Block */
     Ebml_WriteID(glob, SimpleBlock);
 
-    block_length = pkt->data.frame.sz + 4;
+    block_length = (unsigned long)pkt->data.frame.sz + 4;
     block_length |= 0x10000000;
     Ebml_Serialize(glob, &block_length, sizeof(block_length), 4);
 
@@ -833,7 +845,7 @@ write_webm_block(EbmlGlobal                *glob,
         flags |= 0x08;
     Ebml_Write(glob, &flags, 1);
 
-    Ebml_Write(glob, pkt->data.frame.buf, pkt->data.frame.sz);
+    Ebml_Write(glob, pkt->data.frame.buf, (unsigned long)pkt->data.frame.sz);
 }
 
 
@@ -865,7 +877,6 @@ write_webm_file_footer(EbmlGlobal *glob, long hash)
                 Ebml_SerializeUnsigned(glob, CueTrack, 1);
                 Ebml_SerializeUnsigned64(glob, CueClusterPosition,
                                          cue->loc - glob->position_reference);
-                //Ebml_SerializeUnsigned(glob, CueBlockNumber, cue->blockNumber);
                 Ebml_EndSubElement(glob, &start);
             }
             Ebml_EndSubElement(glob, &start);
@@ -942,7 +953,7 @@ static double vp8_mse2psnr(double Samples, double Peak, double Mse)
     if ((double)Mse > 0.0)
         psnr = 10.0 * log10(Peak * Peak * Samples / Mse);
     else
-        psnr = 60;      // Limit to prevent / 0
+        psnr = 60;      /* Limit to prevent / 0 */
 
     if (psnr > 60)
         psnr = 60;
@@ -978,6 +989,8 @@ static const arg_def_t good_dl          = ARG_DEF(NULL, "good", 0,
         "Use Good Quality Deadline");
 static const arg_def_t rt_dl            = ARG_DEF(NULL, "rt", 0,
         "Use Realtime Quality Deadline");
+static const arg_def_t quietarg         = ARG_DEF("q", "quiet", 0,
+        "Do not print encode progress");
 static const arg_def_t verbosearg       = ARG_DEF("v", "verbose", 0,
         "Show encoder parameters");
 static const arg_def_t psnrarg          = ARG_DEF(NULL, "psnr", 0,
@@ -997,7 +1010,7 @@ static const arg_def_t *main_args[] =
     &debugmode,
     &outputfile, &codecarg, &passes, &pass_arg, &fpf_name, &limit, &deadline,
     &best_dl, &good_dl, &rt_dl,
-    &verbosearg, &psnrarg, &use_ivf, &out_part, &q_hist_n, &rate_hist_n,
+    &quietarg, &verbosearg, &psnrarg, &use_ivf, &out_part, &q_hist_n, &rate_hist_n,
     NULL
 };
 
@@ -1225,7 +1238,7 @@ static int merge_hist_buckets(struct hist_bucket *bucket,
     {
         int last_bucket = buckets - 1;
 
-        // merge the small bucket with an adjacent one.
+        /* merge the small bucket with an adjacent one. */
         if(small_bucket == 0)
             merge_bucket = 1;
         else if(small_bucket == last_bucket)
@@ -1325,7 +1338,7 @@ static void show_histogram(const struct hist_bucket *bucket,
         int j;
         float pct;
 
-        pct = 100.0 * (float)bucket[i].count / (float)total;
+        pct = (float)(100.0 * bucket[i].count / total);
         len = HIST_BAR_MAX * bucket[i].count / scale;
         if(len < 1)
             len = 1;
@@ -1393,7 +1406,7 @@ static void init_rate_histogram(struct rate_hist          *hist,
      */
     hist->samples = cfg->rc_buf_sz * 5 / 4 * fps->num / fps->den / 1000;
 
-    // prevent division by zero
+    /* prevent division by zero */
     if (hist->samples == 0)
       hist->samples=1;
 
@@ -1427,7 +1440,7 @@ static void update_rate_histogram(struct rate_hist          *hist,
 
     idx = hist->frames++ % hist->samples;
     hist->pts[idx] = now;
-    hist->sz[idx] = pkt->data.frame.sz;
+    hist->sz[idx] = (int)pkt->data.frame.sz;
 
     if(now < cfg->rc_buf_initial_sz)
         return;
@@ -1449,15 +1462,15 @@ static void update_rate_histogram(struct rate_hist          *hist,
         return;
 
     avg_bitrate = sum_sz * 8 * 1000 / (now - then);
-    idx = avg_bitrate * (RATE_BINS/2) / (cfg->rc_target_bitrate * 1000);
+    idx = (int)(avg_bitrate * (RATE_BINS/2) / (cfg->rc_target_bitrate * 1000));
     if(idx < 0)
         idx = 0;
     if(idx > RATE_BINS-1)
         idx = RATE_BINS-1;
     if(hist->bucket[idx].low > avg_bitrate)
-        hist->bucket[idx].low = avg_bitrate;
+        hist->bucket[idx].low = (int)avg_bitrate;
     if(hist->bucket[idx].high < avg_bitrate)
-        hist->bucket[idx].high = avg_bitrate;
+        hist->bucket[idx].high = (int)avg_bitrate;
     hist->bucket[idx].count++;
     hist->total++;
 }
@@ -1495,6 +1508,7 @@ struct global_config
     int                       usage;
     int                       deadline;
     int                       use_i420;
+    int                       quiet;
     int                       verbose;
     int                       limit;
     int                       show_psnr;
@@ -1619,6 +1633,8 @@ static void parse_global_config(struct global_config *global, char **argv)
             global->use_i420 = 0;
         else if (arg_match(&arg, &use_i420, argi))
             global->use_i420 = 1;
+        else if (arg_match(&arg, &quietarg, argi))
+            global->quiet = 1;
         else if (arg_match(&arg, &verbosearg, argi))
             global->verbose = 1;
         else if (arg_match(&arg, &limit, argi))
@@ -2000,7 +2016,7 @@ static void set_default_kf_interval(struct stream_state  *stream,
     {
         double framerate = (double)global->framerate.num/global->framerate.den;
         if (framerate > 0.0)
-            stream->config.cfg.kf_max_dist = 5.0*framerate;
+            stream->config.cfg.kf_max_dist = (unsigned int)(5.0*framerate);
     }
 }
 
@@ -2180,7 +2196,7 @@ static void encode_frame(struct stream_state  *stream,
                         / cfg->g_timebase.num / global->framerate.num;
     vpx_usec_timer_start(&timer);
     vpx_codec_encode(&stream->encoder, img, frame_start,
-                     next_frame_start - frame_start,
+                     (unsigned long)(next_frame_start - frame_start),
                      0, global->deadline);
     vpx_usec_timer_mark(&timer);
     stream->cx_time += vpx_usec_timer_elapsed(&timer);
@@ -2224,8 +2240,9 @@ static void get_cx_data(struct stream_state  *stream,
             {
                 stream->frames_out++;
             }
-            fprintf(stderr, " %6luF",
-                    (unsigned long)pkt->data.frame.sz);
+            if (!global->quiet)
+                fprintf(stderr, " %6luF",
+                        (unsigned long)pkt->data.frame.sz);
 
             update_rate_histogram(&stream->rate_hist, cfg, pkt);
             if(stream->config.write_webm)
@@ -2233,7 +2250,8 @@ static void get_cx_data(struct stream_state  *stream,
                 /* Update the hash */
                 if(!stream->ebml.debug)
                     stream->hash = murmur(pkt->data.frame.buf,
-                                          pkt->data.frame.sz, stream->hash);
+                                          (int)pkt->data.frame.sz,
+                                          stream->hash);
 
                 write_webm_block(&stream->ebml, cfg, pkt);
             }
@@ -2259,15 +2277,16 @@ static void get_cx_data(struct stream_state  *stream,
                     }
                 }
 
-                fwrite(pkt->data.frame.buf, 1,
-                       pkt->data.frame.sz, stream->file);
+                (void) fwrite(pkt->data.frame.buf, 1, pkt->data.frame.sz,
+                              stream->file);
             }
             stream->nbytes += pkt->data.raw.sz;
             break;
         case VPX_CODEC_STATS_PKT:
             stream->frames_out++;
-            fprintf(stderr, " %6luS",
-                   (unsigned long)pkt->data.twopass_stats.sz);
+            if (!global->quiet)
+                fprintf(stderr, " %6luS",
+                       (unsigned long)pkt->data.twopass_stats.sz);
             stats_write(&stream->stats,
                         pkt->data.twopass_stats.buf,
                         pkt->data.twopass_stats.sz);
@@ -2283,7 +2302,8 @@ static void get_cx_data(struct stream_state  *stream,
                 stream->psnr_samples_total += pkt->data.psnr.samples[0];
                 for (i = 0; i < 4; i++)
                 {
-                    fprintf(stderr, "%.3lf ", pkt->data.psnr.psnr[i]);
+                    if (!global->quiet)
+                        fprintf(stderr, "%.3f ", pkt->data.psnr.psnr[i]);
                     stream->psnr_totals[i] += pkt->data.psnr.psnr[i];
                 }
                 stream->psnr_count++;
@@ -2306,13 +2326,13 @@ static void show_psnr(struct stream_state  *stream)
         return;
 
     fprintf(stderr, "Stream %d PSNR (Overall/Avg/Y/U/V)", stream->index);
-    ovpsnr = vp8_mse2psnr(stream->psnr_samples_total, 255.0,
-                          stream->psnr_sse_total);
-    fprintf(stderr, " %.3lf", ovpsnr);
+    ovpsnr = vp8_mse2psnr((double)stream->psnr_samples_total, 255.0,
+                          (double)stream->psnr_sse_total);
+    fprintf(stderr, " %.3f", ovpsnr);
 
     for (i = 0; i < 4; i++)
     {
-        fprintf(stderr, " %.3lf", stream->psnr_totals[i]/stream->psnr_count);
+        fprintf(stderr, " %.3f", stream->psnr_totals[i]/stream->psnr_count);
     }
     fprintf(stderr, "\n");
 }
@@ -2320,7 +2340,7 @@ static void show_psnr(struct stream_state  *stream)
 
 float usec_to_fps(uint64_t usec, unsigned int frames)
 {
-    return usec > 0 ? (float)frames * 1000000.0 / (float)usec : 0;
+    return (float)(usec > 0 ? frames * 1000000.0 / (float)usec : 0);
 }
 
 
@@ -2437,7 +2457,7 @@ int main(int argc, const char **argv_)
                 vpx_img_alloc(&raw,
                               input.use_i420 ? VPX_IMG_FMT_I420
                                              : VPX_IMG_FMT_YV12,
-                              input.w, input.h, 1);
+                              input.w, input.h, 32);
 
             FOREACH_STREAM(init_rate_histogram(&stream->rate_hist,
                                                &stream->config.cfg,
@@ -2462,18 +2482,21 @@ int main(int argc, const char **argv_)
                 if (frame_avail)
                     frames_in++;
 
-                if(stream_cnt == 1)
-                    fprintf(stderr,
-                            "\rPass %d/%d frame %4d/%-4d %7"PRId64"B \033[K",
-                            pass + 1, global.passes, frames_in,
-                            streams->frames_out, (int64_t)streams->nbytes);
-                else
-                    fprintf(stderr,
-                            "\rPass %d/%d frame %4d %7lu %s (%.2f fps)\033[K",
-                            pass + 1, global.passes, frames_in,
-                            cx_time > 9999999 ? cx_time / 1000 : cx_time,
-                            cx_time > 9999999 ? "ms" : "us",
-                            usec_to_fps(cx_time, frames_in));
+                if (!global.quiet)
+                {
+                    if(stream_cnt == 1)
+                        fprintf(stderr,
+                                "\rPass %d/%d frame %4d/%-4d %7"PRId64"B \033[K",
+                                pass + 1, global.passes, frames_in,
+                                streams->frames_out, (int64_t)streams->nbytes);
+                    else
+                        fprintf(stderr,
+                                "\rPass %d/%d frame %4d %7lu %s (%.2f fps)\033[K",
+                                pass + 1, global.passes, frames_in,
+                                cx_time > 9999999 ? cx_time / 1000 : cx_time,
+                                cx_time > 9999999 ? "ms" : "us",
+                                usec_to_fps(cx_time, frames_in));
+                }
 
             }
             else
@@ -2484,7 +2507,7 @@ int main(int argc, const char **argv_)
                                         frame_avail ? &raw : NULL,
                                         frames_in));
             vpx_usec_timer_mark(&timer);
-            cx_time += vpx_usec_timer_elapsed(&timer);
+            cx_time += (unsigned long)vpx_usec_timer_elapsed(&timer);
 
             FOREACH_STREAM(update_quantizer_histogram(stream));
 
@@ -2497,20 +2520,21 @@ int main(int argc, const char **argv_)
         if(stream_cnt > 1)
             fprintf(stderr, "\n");
 
-        FOREACH_STREAM(fprintf(
-            stderr,
-            "\rPass %d/%d frame %4d/%-4d %7"PRId64"B %7lub/f %7"PRId64"b/s"
-            " %7"PRId64" %s (%.2f fps)\033[K\n", pass + 1,
-            global.passes, frames_in, stream->frames_out, (int64_t)stream->nbytes,
-            frames_in ? (unsigned long)(stream->nbytes * 8 / frames_in) : 0,
-            frames_in ? (int64_t)stream->nbytes * 8
-                        * (int64_t)global.framerate.num / global.framerate.den
-                        / frames_in
-                      : 0,
-            stream->cx_time > 9999999 ? stream->cx_time / 1000 : stream->cx_time,
-            stream->cx_time > 9999999 ? "ms" : "us",
-            usec_to_fps(stream->cx_time, frames_in));
-        );
+        if (!global.quiet)
+            FOREACH_STREAM(fprintf(
+                stderr,
+                "\rPass %d/%d frame %4d/%-4d %7"PRId64"B %7lub/f %7"PRId64"b/s"
+                " %7"PRId64" %s (%.2f fps)\033[K\n", pass + 1,
+                global.passes, frames_in, stream->frames_out, (int64_t)stream->nbytes,
+                frames_in ? (unsigned long)(stream->nbytes * 8 / frames_in) : 0,
+                frames_in ? (int64_t)stream->nbytes * 8
+                            * (int64_t)global.framerate.num / global.framerate.den
+                            / frames_in
+                          : 0,
+                stream->cx_time > 9999999 ? stream->cx_time / 1000 : stream->cx_time,
+                stream->cx_time > 9999999 ? "ms" : "us",
+                usec_to_fps(stream->cx_time, frames_in));
+            );
 
         if (global.show_psnr)
             FOREACH_STREAM(show_psnr(stream));

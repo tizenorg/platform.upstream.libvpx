@@ -31,23 +31,18 @@ typedef struct
 typedef struct
 {
     MACROBLOCKD  mbd;
-    int mb_row;
 } MB_ROW_DEC;
-
-typedef struct
-{
-    int64_t time_stamp;
-    int size;
-} DATARATE;
-
 
 typedef struct VP8D_COMP
 {
     DECLARE_ALIGNED(16, MACROBLOCKD, mb);
 
+    YV12_BUFFER_CONFIG *dec_fb_ref[NUM_YV12_BUFFERS];
+
     DECLARE_ALIGNED(16, VP8_COMMON, common);
 
-    vp8_reader bc, bc2;
+    /* the last partition will be used for the modes/mvs */
+    vp8_reader mbc[MAX_PARTITIONS];
 
     VP8D_CONFIG oxcf;
 
@@ -62,7 +57,7 @@ typedef struct VP8D_COMP
     volatile int b_multithreaded_rd;
     int max_threads;
     int current_mb_col_main;
-    int decoding_thread_count;
+    unsigned int decoding_thread_count;
     int allocated_decoding_thread_count;
 
     int mt_baseline_filter_level[MAX_MB_SEGMENTS];
@@ -85,11 +80,8 @@ typedef struct VP8D_COMP
     /* end of threading data */
 #endif
 
-    vp8_reader *mbc;
     int64_t last_time_stamp;
     int   ready_for_new_data;
-
-    DATARATE dr[16];
 
     vp8_prob prob_intra;
     vp8_prob prob_last;

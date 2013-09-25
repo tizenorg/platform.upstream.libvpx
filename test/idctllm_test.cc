@@ -9,10 +9,16 @@
  */
 
 
- #include "third_party/googletest/src/include/gtest/gtest.h"
+extern "C" {
+#include "vpx_config.h"
+#include "vpx_rtcd.h"
+}
+#include "test/register_state_check.h"
+#include "third_party/googletest/src/include/gtest/gtest.h"
+
 typedef void (*idct_fn_t)(short *input, unsigned char *pred_ptr,
-                            int pred_stride, unsigned char *dst_ptr,
-                            int dst_stride);
+                          int pred_stride, unsigned char *dst_ptr,
+                          int dst_stride);
 namespace {
 class IDCTTest : public ::testing::TestWithParam<idct_fn_t>
 {
@@ -49,7 +55,7 @@ TEST_P(IDCTTest, TestAllZeros)
 {
     int i;
 
-    UUT(input, output, 16, output, 16);
+    REGISTER_STATE_CHECK(UUT(input, output, 16, output, 16));
 
     for(i=0; i<256; i++)
         if((i&0xF) < 4 && i<64)
@@ -63,7 +69,7 @@ TEST_P(IDCTTest, TestAllOnes)
     int i;
 
     input[0] = 4;
-    UUT(input, output, 16, output, 16);
+    REGISTER_STATE_CHECK(UUT(input, output, 16, output, 16));
 
     for(i=0; i<256; i++)
         if((i&0xF) < 4 && i<64)
@@ -80,7 +86,7 @@ TEST_P(IDCTTest, TestAddOne)
         predict[i] = i;
 
     input[0] = 4;
-    UUT(input, predict, 16, output, 16);
+    REGISTER_STATE_CHECK(UUT(input, predict, 16, output, 16));
 
     for(i=0; i<256; i++)
         if((i&0xF) < 4 && i<64)
@@ -96,7 +102,7 @@ TEST_P(IDCTTest, TestWithData)
     for(i=0; i<16; i++)
         input[i] = i;
 
-    UUT(input, output, 16, output, 16);
+    REGISTER_STATE_CHECK(UUT(input, output, 16, output, 16));
 
     for(i=0; i<256; i++)
         if((i&0xF) > 3 || i>63)
@@ -110,4 +116,11 @@ TEST_P(IDCTTest, TestWithData)
         else
             EXPECT_EQ(0, output[i]) << "i==" << i;
 }
+
+INSTANTIATE_TEST_CASE_P(C, IDCTTest,
+                        ::testing::Values(vp8_short_idct4x4llm_c));
+#if HAVE_MMX
+INSTANTIATE_TEST_CASE_P(MMX, IDCTTest,
+                        ::testing::Values(vp8_short_idct4x4llm_mmx));
+#endif
 }

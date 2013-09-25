@@ -164,7 +164,7 @@ static void write_ivf_file_header(FILE *outfile,
     mem_put_le32(header+24, frame_cnt);           /* length */
     mem_put_le32(header+28, 0);                   /* unused */
 
-    if(fwrite(header, 1, 32, outfile));
+    (void) fwrite(header, 1, 32, outfile);
 }
 
 static void write_ivf_frame_header(FILE *outfile,
@@ -181,7 +181,7 @@ static void write_ivf_frame_header(FILE *outfile,
     mem_put_le32(header+4, pts&0xFFFFFFFF);
     mem_put_le32(header+8, pts >> 32);
 
-    if(fwrite(header, 1, 12, outfile));
+    (void) fwrite(header, 1, 12, outfile);
 }
 
 int main(int argc, char **argv)
@@ -273,7 +273,7 @@ int main(int argc, char **argv)
     cfg[0].g_w = width;
     cfg[0].g_h = height;
     cfg[0].g_threads = 1;                           /* number of threads used */
-    cfg[0].rc_dropframe_thresh = 0;
+    cfg[0].rc_dropframe_thresh = 30;
     cfg[0].rc_end_usage = VPX_CBR;
     cfg[0].rc_resize_allowed = 0;
     cfg[0].rc_min_quantizer = 4;
@@ -283,13 +283,17 @@ int main(int argc, char **argv)
     cfg[0].rc_buf_initial_sz = 500;
     cfg[0].rc_buf_optimal_sz = 600;
     cfg[0].rc_buf_sz = 1000;
-    //cfg[0].rc_dropframe_thresh = 10;
     cfg[0].g_error_resilient = 1;              /* Enable error resilient mode */
     cfg[0].g_lag_in_frames   = 0;
 
     /* Disable automatic keyframe placement */
+    /* Note: These 3 settings are copied to all levels. But, except the lowest
+     * resolution level, all other levels are set to VPX_KF_DISABLED internally.
+     */
     //cfg[0].kf_mode           = VPX_KF_DISABLED;
-    cfg[0].kf_min_dist = cfg[0].kf_max_dist = 1000;
+    cfg[0].kf_mode           = VPX_KF_AUTO;
+    cfg[0].kf_min_dist = 3000;
+    cfg[0].kf_max_dist = 3000;
 
     cfg[0].rc_target_bitrate = target_bitrate[0];       /* Set target bitrate */
     cfg[0].g_timebase.num = 1;                          /* Set fps */
@@ -361,6 +365,12 @@ int main(int argc, char **argv)
         if(vpx_codec_control(&codec[i], VP8E_SET_STATIC_THRESHOLD, static_thresh))
             die_codec(&codec[i], "Failed to set static threshold");
     }
+    /* Set NOISE_SENSITIVITY to do TEMPORAL_DENOISING */
+    for ( i=0; i< NUM_ENCODERS; i++)
+    {
+        if(vpx_codec_control(&codec[i], VP8E_SET_NOISE_SENSITIVITY, 0))
+            die_codec(&codec[i], "Failed to set noise_sensitivity");
+    }
 
     frame_avail = 1;
     got_data = 0;
@@ -405,8 +415,8 @@ int main(int argc, char **argv)
                 switch(pkt[i]->kind) {
                     case VPX_CODEC_CX_FRAME_PKT:
                         write_ivf_frame_header(outfile[i], pkt[i]);
-                        if(fwrite(pkt[i]->data.frame.buf, 1, pkt[i]->data.frame.sz,
-                                  outfile[i]));
+                        (void) fwrite(pkt[i]->data.frame.buf, 1,
+                                      pkt[i]->data.frame.sz, outfile[i]);
                     break;
                     case VPX_CODEC_PSNR_PKT:
                         if (show_psnr)
