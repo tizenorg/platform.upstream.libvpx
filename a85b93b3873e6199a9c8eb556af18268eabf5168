@@ -1,0 +1,9 @@
+Code-Review+2: Ryan Ware <ware@linux.intel.com>
+Verified+1: Ryan Ware <ware@linux.intel.com>
+Code-Review+1: Patrick McCarty <patrick.mccarty@linux.intel.com>
+Code-Review+1: william douglas <william.douglas@intel.com>
+Submitted-by: Ryan Ware <ware@linux.intel.com>
+Submitted-at: Wed, 25 Sep 2013 12:39:31 -0700
+Reviewed-on: https://review.tizen.org/gerrit/10250
+Project: platform/upstream/libvpx
+Branch: refs/heads/tizen
