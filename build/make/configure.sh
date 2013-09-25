@@ -799,7 +799,7 @@ process_common_toolchain() {
 
         case ${tgt_cc} in
         gcc)
-            CROSS=${CROSS:-arm-none-linux-gnueabi-}
+            CROSS=""
             link_with_cc=gcc
             setup_gnu_toolchain
             arch_int=${tgt_isa##armv}
