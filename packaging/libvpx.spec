@@ -49,6 +49,9 @@ The WebM file structure is based on the Matroska container.
 cp %{SOURCE1001} .
 
 %build
+# disable cross build for ARM
+sed -e 's|CROSS=".*"|CROSS=""|g' -i ./build/make/configure.sh
+
 cd build
 export CFLAGS="%{optflags}"
 # It is only an emulation of autotools configure; the macro does not work
