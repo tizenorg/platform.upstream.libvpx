@@ -56,7 +56,7 @@ export CFLAGS="%{optflags}"
 # CPU doesn't have NEON, e.g. NVIDIA Tegra 2.
 # So, we still set -mfpu=neon when build libvpx rpm, but also enable
 # runtime-cpu-detect for runtime detect NEON.
-../configure \
+bash -x ../configure \
     --prefix=%{_prefix} \
     --libdir=%{_libdir} \
     --enable-debug \
