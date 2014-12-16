@@ -1,10 +1,9 @@
 Name:           libvpx
-Version:        1.3.0
+Version:        1.2.0
 Release:        0
-License:        BSD-3-Clause or GPL-2.0+
+License:        BSD-3-Clause and GPL-2.0+
 Summary:        VP8 codec library
 Url:            http://www.webmproject.org/
-#X-Vc-Url:	https://chromium.googlesource.com/webm/libvpx
 Group:          Multimedia/Libraries
 Source0:        http://webm.googlecode.com/files/%{name}-v%{version}.tar.bz2
 Source1001: 	libvpx.manifest
@@ -32,7 +31,7 @@ and audio streams compressed with the Vorbis audio codec.
 The WebM file structure is based on the Matroska container.
 %package devel
 Summary:        VP8 codec library - Development headers
-Requires:       %{name} = %{version}-%{release}
+Requires:       %{name} = %{version}
 
 %description devel
 Development headers and library
@@ -62,11 +61,13 @@ export CFLAGS="%{optflags}"
     --libdir=%{_libdir} \
     --enable-debug \
     --enable-shared \
+    --disable-fast-unaligned \
 %ifarch armv7l armv7hl
     --target=armv7-linux-gcc \
     --enable-runtime-cpu-detect \
 %endif
-    --enable-pic
+    --enable-pic  \
+|| cat config.log
 
 %__make %{?_smp_mflags}
 
