@@ -53,7 +53,7 @@ cp %{SOURCE1001} .
 sed -e 's|CROSS=".*"|CROSS=""|g' -i ./build/make/configure.sh
 
 cd build
-export CFLAGS="%{optflags}"
+export CFLAGS="%{optflags} -std=gnu89"
 # It is only an emulation of autotools configure; the macro does not work
 
 # libvpx default enable NEON support on ARMv7, unfortunately some ARMv7
