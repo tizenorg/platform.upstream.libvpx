@@ -1,7 +1,7 @@
 Name:           libvpx
 Version:        1.3.0
 Release:        0
-License:        BSD-3-Clause or GPL-2.0+
+License:        BSD-3-Clause
 Summary:        VP8 codec library
 Url:            http://www.webmproject.org/
 #X-Vc-Url:	https://chromium.googlesource.com/webm/libvpx
